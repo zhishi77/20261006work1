@@ -3,6 +3,7 @@
 #include "io/plotter/plotter.hpp"
 #include "tools/mahony/mahony.hpp"
 #include "io/dbus/dbus.hpp"
+#include "motor/rm_motor/rm_motor.hpp"
 
 // BMI088坐标系转换到C板使用的坐标系
 const float r_ab[3][3] = {
@@ -27,8 +28,13 @@ sp::Mahony imu(0.001f);
 // 使用USART1发送数据
 // false表示暂时不使用DMA，方便第一次调试
 sp::Plotter plotter(&huart1, false);
+
 // remote 实际创建在 uart_task.cpp 中，这里借来读取结果
 extern sp::DBus remote;
+
+// 两台电机实际创建在 motor_task.cpp，这里只读取它们的状态
+extern sp::RM_Motor motor_a;
+extern sp::RM_Motor motor_b;
 
 extern "C" void imu_task(void const * argument)
 {
@@ -77,7 +83,12 @@ extern "C" void imu_task(void const * argument)
                 remote_online ? 1.0f : 0.0f,  // Channel 10：在线=1，失联=0
                 remote_online ? static_cast<float>(remote.sw_r) : -1.0f, // 11：右拨杆
                 remote_online ? static_cast<float>(remote.sw_l) : -1.0f, // 12：左拨杆
-                remote_online ? remote.ch_rh : 0.0f                     // 13：右摇杆水平位置
+                remote_online ? remote.ch_rh : 0.0f ,                  // 13：右摇杆水平位置
+
+                motor_a.is_alive(osKernelSysTick()) ? 1.0f : 0.0f, // 14：A 在线
+                motor_a.angle * RAD_TO_DEG,                        // 15：A 角度
+                motor_b.is_alive(osKernelSysTick()) ? 1.0f : 0.0f, // 16：B 在线
+                motor_b.angle * RAD_TO_DEG                         // 17：B 角度
             );
         }
 
