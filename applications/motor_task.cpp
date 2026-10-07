@@ -3,6 +3,7 @@
 #include "cmsis_os.h"
 #include "io/can/can.hpp"
 #include "motor/rm_motor/rm_motor.hpp"
+#include "io/dbus/dbus.hpp"
 
 // 使用C板CAN1
 sp::CAN motor_can(&hcan1);
@@ -10,6 +11,9 @@ sp::CAN motor_can(&hcan1);
 // 假设A电机ID为1，B电机ID为2
 sp::RM_Motor motor_a(1, sp::RM_Motors::GM6020);
 sp::RM_Motor motor_b(2, sp::RM_Motors::GM6020);
+
+// remote 在 uart_task.cpp 中创建，这里读取它
+extern sp::DBus remote;
 
 extern "C" void motor_task(void const * argument)
 {
@@ -24,8 +28,26 @@ extern "C" void motor_task(void const * argument)
 
     while (true) {
         // 当前安全测试阶段：两台电机都不主动出力
-        motor_a.cmd(0.0f);
-        motor_b.cmd(0.0f);
+       //motor_a.cmd(0.0f);
+        //motor_b.cmd(0.0f);
+
+        const bool remote_online = remote.is_alive(osKernelSysTick());
+
+if (!remote_online || remote.sw_r == sp::DBusSwitchMode::DOWN) {
+    // 遥控器失联，或右拨杆下档：必须零输出
+    motor_a.cmd(0.0f);
+    motor_b.cmd(0.0f);
+}
+else if (remote.sw_r == sp::DBusSwitchMode::MID) {
+    // 中档：将来写姿态联动；现在仍保持零输出
+    motor_a.cmd(0.0f);
+    motor_b.cmd(0.0f);
+}
+else {
+    // 上档：将来写 R 标复位；现在仍保持零输出
+    motor_a.cmd(0.0f);
+    motor_b.cmd(0.0f);
+}
 
         // 先把整帧8字节清零
         std::memset(motor_can.tx_data, 0, sizeof(motor_can.tx_data));
