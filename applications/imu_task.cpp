@@ -2,6 +2,7 @@
 #include "io/bmi088/bmi088.hpp"
 #include "io/plotter/plotter.hpp"
 #include "tools/mahony/mahony.hpp"
+#include "io/dbus/dbus.hpp"
 
 // BMI088坐标系转换到C板使用的坐标系
 const float r_ab[3][3] = {
@@ -26,6 +27,8 @@ sp::Mahony imu(0.001f);
 // 使用USART1发送数据
 // false表示暂时不使用DMA，方便第一次调试
 sp::Plotter plotter(&huart1, false);
+// remote 实际创建在 uart_task.cpp 中，这里借来读取结果
+extern sp::DBus remote;
 
 extern "C" void imu_task(void const * argument)
 {
@@ -51,6 +54,7 @@ extern "C" void imu_task(void const * argument)
             print_count = 0;
 
             constexpr float RAD_TO_DEG = 57.29578f;
+            const bool remote_online = remote.is_alive(osKernelSysTick());
 
             plotter.plot(
                 // 通道1～3：加速度，单位m/s²
@@ -66,7 +70,14 @@ extern "C" void imu_task(void const * argument)
                 // 通道7～9：姿态角，转换成度
                 imu.roll  * RAD_TO_DEG,
                 imu.pitch * RAD_TO_DEG,
-                imu.yaw   * RAD_TO_DEG
+                imu.yaw   * RAD_TO_DEG,
+
+
+
+                remote_online ? 1.0f : 0.0f,  // Channel 10：在线=1，失联=0
+                remote_online ? static_cast<float>(remote.sw_r) : -1.0f, // 11：右拨杆
+                remote_online ? static_cast<float>(remote.sw_l) : -1.0f, // 12：左拨杆
+                remote_online ? remote.ch_rh : 0.0f                     // 13：右摇杆水平位置
             );
         }
 
