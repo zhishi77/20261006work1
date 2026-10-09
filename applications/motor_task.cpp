@@ -26,27 +26,51 @@ extern "C" void motor_task(void const * argument)
     // 等待CAN和电机上电稳定
     osDelay(100);
 
+    bool armed = false;         // 是否已在下档准备好一次测试
+    bool pulse_active = false;  // A 电机的短脉冲是否正在进行
+    uint32_t pulse_start_ms = 0;
+
     while (true) {
         // 当前安全测试阶段：两台电机都不主动出力
        //motor_a.cmd(0.0f);
         //motor_b.cmd(0.0f);
 
-        const bool remote_online = remote.is_alive(osKernelSysTick());
+        const uint32_t now_ms = osKernelSysTick();
+const bool remote_online = remote.is_alive(now_ms);
+const bool motors_online =
+    motor_a.is_alive(now_ms) && motor_b.is_alive(now_ms);
 
-if (!remote_online || remote.sw_r == sp::DBusSwitchMode::DOWN) {
-    // 遥控器失联，或右拨杆下档：必须零输出
-    motor_a.cmd(0.0f);
-    motor_b.cmd(0.0f);
+// 每一轮先默认两台电机都为零输出
+motor_a.cmd(0.0f);
+motor_b.cmd(0.0f);
+
+if (!remote_online || !motors_online) {
+    // 遥控器或任一电机掉线：取消测试，必须重新从下档开始
+    armed = false;
+    pulse_active = false;
+}
+else if (remote.sw_r == sp::DBusSwitchMode::DOWN) {
+    // 看到下档，才允许下一次“下档→中档”触发测试
+    armed = true;
+    pulse_active = false;
 }
 else if (remote.sw_r == sp::DBusSwitchMode::MID) {
-    // 中档：将来写姿态联动；现在仍保持零输出
-    motor_a.cmd(0.0f);
-    motor_b.cmd(0.0f);
+    if (armed) {
+        armed = false;  // 只触发一次，不因任务循环而反复触发
+        pulse_active = true;
+        pulse_start_ms = now_ms;
+    }
+
+    if (pulse_active && (now_ms - pulse_start_ms < 100)) {
+        motor_a.cmd(0.05f);  // 仅 A：很小的转矩指令，持续最多 100 ms
+    } else {
+        pulse_active = false;
+    }
 }
 else {
-    // 上档：将来写 R 标复位；现在仍保持零输出
-    motor_a.cmd(0.0f);
-    motor_b.cmd(0.0f);
+    // 上档暂不做复位
+    armed = false;
+    pulse_active = false;
 }
 
         // 先把整帧8字节清零
