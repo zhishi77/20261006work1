@@ -60,10 +60,9 @@ constexpr uint32_t MANUAL_RELEASE_MS = 120;
 // 开启“手动转任一电机，另一台按比例跟随”。
 constexpr bool ENABLE_MANUAL_INPUT = true;
 
-// R 标对齐时的逻辑角度。当前按驱动中的编码器中心零点设置；
-// 请将两台电机 R 标与 C 板 R 标对齐后，用实测值替换。
-constexpr float A_R_ZERO_RAD = 0.0f;
-constexpr float B_R_ZERO_RAD = 0.0f;
+// 实物标定结果：两台电机的 R 标与 C 板 R 标对齐时均为 -55°。
+constexpr float A_R_ZERO_RAD = -0.9599311f;
+constexpr float B_R_ZERO_RAD = -0.9599311f;
 
 enum class ControlMode
 {
