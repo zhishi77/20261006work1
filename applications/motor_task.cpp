@@ -66,7 +66,7 @@ else if (remote.sw_r == sp::DBusSwitchMode::MID) {
     }
 
     if (pulse_active && (now_ms - pulse_start_ms < 100)) {
-        motor_a.cmd(0.05f);  // 仅 A：很小的转矩指令，持续最多 100 ms
+        motor_b.cmd(0.05f);  // 
     } else {
         pulse_active = false;
     }
