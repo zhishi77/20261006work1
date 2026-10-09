@@ -1,48 +1,51 @@
-# RoboMaster C板第一阶段考核
+# RoboMaster C 板考核项目
 
-## 项目内容
+## 已实现功能
 
-本项目用于完成C板基础功能考核：
+- 上电播放 Do-Mi-Sol 蜂鸣器提示音。
+- RGB LED 循环渐变，用于观察程序是否堵塞。
+- 读取 BMI088 的三轴加速度、角速度和姿态角，并通过 USART1 输出到 SerialPlot。
+- 通过 USART3（100000、8E1、DMA）接收 DT7/DR16 遥控器数据。
+- 通过 CAN1 控制两台 GM6020（A：ID 1，B：ID 2）。
 
-- 上电后蜂鸣器播放Do-Mi-Sol提示音
-- RGB LED循环渐变，用作程序运行状态指示
-- 读取BMI088加速度、角速度及姿态角
-- 通过USART1向SerialPlot发送IMU数据
-- 通过USART3和DMA接收DT7/DR16遥控器数据
+## 电机控制
 
-## 硬件
+右拨杆：
 
-- RoboMaster开发板C型
-- DT7遥控器和DR16接收机
-- CMSIS-DAP无线烧录器
+- 下档：失能，两台电机零力矩；进入其他模式前必须先经过下档。
+- 中档：姿态联动。A 与 C 板 yaw 按 1:1 联动，B 的比例由左拨杆决定。
+- 上档：复位，两台电机回到 R 标对齐位置。
 
-## 软件与配置
+左拨杆在联动模式下控制 B 电机比例：
 
-- STM32CubeMX
-- VS Code
-- CMake和ARM GCC
-- OpenOCD
-- SerialPlot
+- 下档：`1:0.5`
+- 中档：`1:-1`
+- 上档：`1:3`
 
-## 重要配置
+保持 C 板静止时，可手动转动任一电机，另一台按对应比例跟随。松手后当前位置成为新的联动参考点，随后转动 C 板不会自动回到原位置。
 
-- 系统时钟：168 MHz
-- 蜂鸣器：PD14 / TIM4_CH3
-- RGB LED：PH10、PH11、PH12 / TIM5_CH1～CH3
-- BMI088：SPI1，Mode 3，Prescaler 8
-- 上位机串口：USART1，921600
-- 遥控器：USART3，100000，8E1，DMA接收
+## 复位标定
 
-## 编译
+A、B 电机的 R 标对齐角度目前均标定为 `-55°`：
 
-1. 使用STM32CubeMX打开 `.ioc` 文件并生成代码。
-2. 使用VS Code打开工程根目录。
-3. 选择CMake Debug预设。
-4. 执行Configure和Build。
+```cpp
+constexpr float A_R_ZERO_RAD = -0.9599311f;
+constexpr float B_R_ZERO_RAD = -0.9599311f;
+```
+
+右拨杆切到上档后，电机选择距离当前位置最近的等效角度复位。
+
+## 编译与测试
+
+1. 使用 VS Code 打开工程根目录。
+2. 执行 CMake Configure、Clean 和 Build。
+3. 烧录后先将右拨杆置于下档。
+4. 架空电机，依次测试中档姿态联动、手动联动和上档复位。
 
 ## 注意事项
 
-- 修改CubeMX配置后需要重新生成代码。
-- 修改CMakeLists.txt后需要重新执行CMake Configure。
-- SerialPlot使用921600波特率和Custom Frame格式。
-- 烧录及硬件功能仍需在实验室验证。
+- USART1/SerialPlot 波特率为 `921600`，使用 Custom Frame 格式。
+- 联动力矩上限为 `0.15 N·m`，复位力矩上限为 `0.10 N·m`。
+- 遥控器、任一电机或 IMU 掉线时，系统立即失能；恢复后需将右拨杆重新经过下档。
+- 若电机与 SerialPlot 同时停止，应优先检查 C 板供电、电源限流、XT30 接线和系统复位情况。
+- 修改 CubeMX 配置并重新生成代码时，注意保留 `applications` 和构建配置中的自定义内容。
