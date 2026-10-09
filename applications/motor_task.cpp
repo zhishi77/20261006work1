@@ -15,6 +15,9 @@ sp::RM_Motor motor_b(2, sp::RM_Motors::GM6020);
 // remote 在 uart_task.cpp 中创建，这里读取它
 extern sp::DBus remote;
 
+//增加短脉冲计数实验
+volatile uint32_t pulse_trigger_count = 0;
+
 extern "C" void motor_task(void const * argument)
 {
     (void)argument;
@@ -59,6 +62,7 @@ else if (remote.sw_r == sp::DBusSwitchMode::MID) {
         armed = false;  // 只触发一次，不因任务循环而反复触发
         pulse_active = true;
         pulse_start_ms = now_ms;
+        ++pulse_trigger_count;
     }
 
     if (pulse_active && (now_ms - pulse_start_ms < 100)) {

@@ -36,6 +36,8 @@ extern sp::DBus remote;
 extern sp::RM_Motor motor_a;
 extern sp::RM_Motor motor_b;
 
+extern volatile uint32_t pulse_trigger_count;
+
 extern "C" void imu_task(void const * argument)
 {
     (void)argument;
@@ -83,8 +85,7 @@ extern "C" void imu_task(void const * argument)
                 remote_online ? 1.0f : 0.0f,  // Channel 10：在线=1，失联=0
                 remote_online ? static_cast<float>(remote.sw_r) : -1.0f, // 11：右拨杆
                 remote_online ? static_cast<float>(remote.sw_l) : -1.0f, // 12：左拨杆
-                remote_online ? remote.ch_rh : 0.0f ,                  // 13：右摇杆水平位置
-
+                static_cast<float>(pulse_trigger_count), // 13：脉冲触发次数
                 motor_a.is_alive(osKernelSysTick()) ? 1.0f : 0.0f, // 14：A 在线
                 motor_a.angle * RAD_TO_DEG,                        // 15：A 角度
                 motor_b.is_alive(osKernelSysTick()) ? 1.0f : 0.0f, // 16：B 在线
