@@ -27,11 +27,12 @@ sp::BMI088 bmi088(
 // 每 1 ms 更新一次姿态，因此 dt = 0.001 秒
 sp::Mahony imu(0.001f);
 
-// 发布给 motor_task.cpp 的 yaw 快照，单位 rad
+// 发布给 motor_task.cpp 的 yaw 快照和更新时间
 std::atomic<float> imu_yaw_rad{0.0f};
+std::atomic<float> imu_yaw_rate_rad_s{0.0f};
+std::atomic<uint32_t> imu_yaw_stamp_ms{0};
 
-// 使用 USART1 发送数据
-// false 表示暂时不使用 DMA，方便调试
+// 使用 USART1 发送数据；暂时不使用 DMA
 sp::Plotter plotter(&huart1, false);
 
 // remote 实际创建在 uart_task.cpp 中
@@ -41,30 +42,27 @@ extern sp::DBus remote;
 extern sp::RM_Motor motor_a;
 extern sp::RM_Motor motor_b;
 
-// A 的目标角度实际创建在 motor_task.cpp
+// 目标角度实际创建在 motor_task.cpp
 extern std::atomic<float> a_target_rad;
+extern std::atomic<float> b_target_rad;
 
 extern "C" void imu_task(void const * argument)
 {
     (void)argument;
 
-    // 初始化加速度计和陀螺仪
     bmi088.init();
 
     uint32_t print_count = 0;
 
     while (true) {
-        // 读取加速度、角速度和温度
         bmi088.update();
-
-        // 根据加速度和角速度计算姿态
         imu.update(bmi088.acc, bmi088.gyro);
 
-        // 将最新 yaw 提供给电机任务
         imu_yaw_rad.store(imu.yaw);
+        imu_yaw_rate_rad_s.store(imu.vyaw);
+        imu_yaw_stamp_ms.store(osKernelSysTick());
 
-        // 读取周期约为 1 ms，但每 20 ms 才发送一次
-        // 避免串口发送过于频繁
+        // IMU 约每 1 ms 更新；串口约每 20 ms 发送一次
         print_count++;
 
         if (print_count >= 20) {
@@ -75,36 +73,37 @@ extern "C" void imu_task(void const * argument)
             const bool remote_online = remote.is_alive(now_ms);
 
             plotter.plot(
-                // 通道 1～3：加速度，单位 m/s²
+                // 加速度：m/s²
                 bmi088.acc[0],
                 bmi088.acc[1],
                 bmi088.acc[2],
 
-                // 通道 4～6：角速度，单位 rad/s
+                // 角速度：rad/s
                 bmi088.gyro[0],
                 bmi088.gyro[1],
                 bmi088.gyro[2],
 
-                // 通道 7～9：姿态角，单位°
+                // C 板姿态角：°
                 imu.roll  * RAD_TO_DEG,
                 imu.pitch * RAD_TO_DEG,
                 imu.yaw   * RAD_TO_DEG,
 
-                // 通道 10～13：遥控器状态和 A 目标角度
-                remote_online ? 1.0f : 0.0f,  // 10：遥控器在线
+                // 遥控器及目标角度
+                remote_online ? 1.0f : 0.0f,
                 remote_online
                     ? static_cast<float>(remote.sw_r)
-                    : -1.0f,                  // 11：右拨杆
+                    : -1.0f,
                 remote_online
                     ? static_cast<float>(remote.sw_l)
-                    : -1.0f,                  // 12：左拨杆
-                a_target_rad.load() * RAD_TO_DEG, // 13：A 目标角度
+                    : -1.0f,
+                a_target_rad.load() * RAD_TO_DEG,
+                b_target_rad.load() * RAD_TO_DEG,
 
-                // 通道 14～17：两台电机在线状态和实际角度
-                motor_a.is_alive(now_ms) ? 1.0f : 0.0f, // 14：A 在线
-                motor_a.angle * RAD_TO_DEG,              // 15：A 实际角度
-                motor_b.is_alive(now_ms) ? 1.0f : 0.0f, // 16：B 在线
-                motor_b.angle * RAD_TO_DEG               // 17：B 实际角度
+                // 两台电机的在线状态及实际角度
+                motor_a.is_alive(now_ms) ? 1.0f : 0.0f,
+                motor_a.angle * RAD_TO_DEG,
+                motor_b.is_alive(now_ms) ? 1.0f : 0.0f,
+                motor_b.angle * RAD_TO_DEG
             );
         }
 
